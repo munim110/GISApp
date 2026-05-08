@@ -1,0 +1,27 @@
+{% extends "accounts/_auth_base.html" %}
+{% block title %}Sign up · SWAMP{% endblock %}
+{% block content %}
+  <h1>Create an account</h1>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="{% url 'signup' %}">
+    {% csrf_token %}
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus />
+    </div>
+    <div class="field">
+      <label for="email">Email <span style="color:#546e7a;text-transform:none;letter-spacing:0;font-size:10px;">(optional)</span></label>
+      <input id="email" name="email" type="email" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required />
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" required />
+    </div>
+    <button class="submit" type="submit">Create account</button>
+  </form>
+  <div class="alt-link">Already have an account? <a href="{% url 'login' %}">Sign in</a></div>
+{% endblock %}

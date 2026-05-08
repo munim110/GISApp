@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SWAMP · Surface Water Monitoring Platform</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top Bar ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      height: 52px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      flex-shrink: 0;
+      z-index: 1000;
+    }
+    .brand-mark {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg,#1565c0,#29b6f6 70%,#80deea);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 16px;
+      box-shadow: inset 0 0 10px rgba(255,255,255,.18);
+    }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+    .brand-name { font-weight: 700; font-size: 16px; color: #4fc3f7; letter-spacing: .5px; }
+    .brand-sub  { font-size: 10px; color: #78909c; letter-spacing: .5px; }
+    .topbar-sep { width: 1px; height: 24px; background: #0f3460; }
+
+    .base-btn {
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: 1px solid #0f3460;
+      background: transparent;
+      color: #b0bec5;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all .15s;
+    }
+    .base-btn.active, .base-btn:hover {
+      background: #0f3460;
+      color: #4fc3f7;
+      border-color: #29b6f6;
+    }
+
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+    .icon-btn {
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: none;
+      background: #0f3460;
+      color: #4fc3f7;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s;
+    }
+    .icon-btn:hover { background: #1a5276; }
+    .icon-btn.subtle { background: transparent; color: #78909c; border: 1px solid #0f3460; }
+    .icon-btn.subtle:hover { color: #4fc3f7; border-color: #29b6f6; }
+
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #0f3460;
+      border-radius: 14px;
+      font-size: 12px;
+      color: #cfd8dc;
+    }
+    .user-chip .role {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #1a5276;
+      color: #4fc3f7;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .user-chip .role.admin { background: #ad1457; color: #ffcdd2; }
+
+    /* ── Main Layout ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 320px;
+      min-width: 240px;
+      background: #16213e;
+      border-right: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #sidebar-header {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #78909c;
+      border-bottom: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #upload-area {
+      padding: 10px 12px;
+      border-bottom: 1px solid #0f3460;
+    }
+    #upload-drop {
+      border: 2px dashed #0f3460;
+      border-radius: 6px;
+      padding: 16px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      font-size: 12px;
+      color: #78909c;
+    }
+    #upload-drop:hover, #upload-drop.drag-over {
+      border-color: #29b6f6;
+      background: rgba(41,182,246,.05);
+      color: #4fc3f7;
+    }
+    #upload-drop i { font-size: 20px; display: block; margin-bottom: 6px; }
+    #file-input { display: none; }
+    #upload-options {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #78909c;
+    }
+    #upload-options input[type="checkbox"] { accent-color: #29b6f6; }
+
+    #upload-progress { display: none; margin-top: 8px; }
+    .progress-bar { height: 4px; background: #0f3460; border-radius: 2px; overflow: hidden; }
+    .progress-fill {
+      height: 100%;
+      background: #29b6f6;
+      width: 40%;
+      animation: indeterminate 1.2s infinite;
+    }
+    @keyframes indeterminate {
+      0%   { margin-left: -40%; }
+      100% { margin-left: 100%; }
+    }
+    #upload-status { font-size: 11px; color: #78909c; margin-top: 4px; text-align: center; }
+
+    #layer-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+    #layer-list::-webkit-scrollbar { width: 4px; }
+    #layer-list::-webkit-scrollbar-track { background: #16213e; }
+    #layer-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
+
+    .layer-item {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(15,52,96,.5);
+      cursor: pointer;
+      transition: background .1s;
+      user-select: none;
+    }
+    .layer-item:hover { background: rgba(41,182,246,.05); }
+    .layer-item.selected { background: rgba(41,182,246,.10); }
+    .layer-item.locked { border-left: 3px solid #ffb300; }
+
+    .layer-row1 { display: flex; align-items: center; gap: 8px; }
+    .layer-vis-btn {
+      background: none; border: none; color: #78909c; cursor: pointer;
+      font-size: 14px; width: 20px; flex-shrink: 0; transition: color .15s;
+    }
+    .layer-vis-btn.visible { color: #4fc3f7; }
+    .layer-type-icon { font-size: 11px; width: 18px; text-align: center; flex-shrink: 0; }
+    .layer-type-icon.raster { color: #ff8f00; }
+    .layer-type-icon.vector, .layer-type-icon.geojson { color: #66bb6a; }
+
+    .layer-name {
+      flex: 1; font-size: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: #cfd8dc;
+    }
+    .layer-name.hidden { color: #546e7a; }
+    .lock-badge {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #ffb300;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .layer-actions {
+      display: flex; gap: 4px; opacity: 0; transition: opacity .15s;
+    }
+    .layer-item:hover .layer-actions { opacity: 1; }
+    .layer-act-btn {
+      background: none; border: none; color: #78909c; cursor: pointer;
+      font-size: 11px; padding: 2px 4px; border-radius: 3px;
+      transition: color .15s, background .15s;
+    }
+    .layer-act-btn:hover { color: #4fc3f7; background: rgba(41,182,246,.1); }
+    .layer-act-btn.del:hover { color: #ef5350; background: rgba(239,83,80,.1); }
+    .layer-act-btn.lock-toggle.on { color: #ffb300; }
+    .layer-act-btn[disabled] { opacity: .35; cursor: not-allowed; }
+
+    .layer-row2 {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 5px; padding-left: 28px;
+    }
+    .opacity-slider {
+      flex: 1; -webkit-appearance: none;
+      height: 3px; background: #0f3460; border-radius: 2px; outline: none;
+    }
+    .opacity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px;
+      border-radius: 50%; background: #29b6f6; cursor: pointer;
+    }
+    .opacity-val { font-size: 10px; color: #546e7a; width: 28px; text-align: right; }
+
+    .processing-badge {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px;
+      background: #ff8f00; color: #fff;
+    }
+    .error-badge {
+      font-size: 10px; padding: 1px 5px; border-radius: 3px;
+      background: #c62828; color: #fff;
+    }
+
+    /* Layer settings panel (slides out below an item) */
+    .layer-settings {
+      margin: 6px 0 4px 28px;
+      padding: 10px;
+      background: rgba(15,52,96,.45);
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      display: none;
+    }
+    .layer-settings.open { display: block; }
+    .layer-settings h4 {
+      font-size: 10px;
+      color: #78909c;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .ls-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+    .ls-row label { color: #b0bec5; min-width: 70px; }
+    .ls-row select, .ls-row input[type="text"], .ls-row input[type="number"] {
+      flex: 1;
+      background: #0d1b2a;
+      border: 1px solid #0f3460;
+      color: #cfd8dc;
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      outline: none;
+    }
+    .ls-row input[type="color"] {
+      width: 28px; height: 22px; border: 1px solid #0f3460;
+      background: transparent; cursor: pointer; padding: 0;
+    }
+    .ls-row input[type="range"] {
+      flex: 1; -webkit-appearance: none;
+      height: 3px; background: #0f3460; border-radius: 2px;
+    }
+    .ls-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 11px; height: 11px;
+      border-radius: 50%; background: #29b6f6; cursor: pointer;
+    }
+    .ls-row .num { width: 36px; text-align: right; font-size: 10px; color: #78909c; }
+    .ls-tabs {
+      display: flex; gap: 4px; margin-bottom: 8px;
+      border-bottom: 1px solid #0f3460;
+    }
+    .ls-tab {
+      background: none; border: none;
+      padding: 4px 8px; cursor: pointer;
+      color: #78909c; font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+      border-bottom: 2px solid transparent;
+      transition: all .15s;
+    }
+    .ls-tab.active { color: #4fc3f7; border-bottom-color: #29b6f6; }
+    .ls-pane { display: none; }
+    .ls-pane.active { display: block; }
+    .stops-list {
+      display: flex; flex-direction: column; gap: 4px;
+      margin-top: 4px;
+    }
+    .stop-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px;
+    }
+    .stop-row input[type="number"] {
+      width: 70px;
+      background: #0d1b2a;
+      border: 1px solid #0f3460;
+      color: #cfd8dc;
+      font-size: 11px;
+      padding: 3px 5px;
+      border-radius: 3px;
+    }
+    .stop-row .del-stop {
+      background: none; border: none; color: #78909c;
+      cursor: pointer; font-size: 11px;
+    }
+    .stop-row .del-stop:hover { color: #ef5350; }
+    .add-stop {
+      background: transparent;
+      border: 1px dashed #0f3460;
+      color: #78909c;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .add-stop:hover { border-color: #29b6f6; color: #4fc3f7; }
+    .ramp-preview {
+      width: 100%;
+      height: 12px;
+      border-radius: 3px;
+      margin-top: 4px;
+      border: 1px solid #0f3460;
+    }
+    .locked-notice {
+      font-size: 10px;
+      color: #ffb300;
+      background: rgba(255,179,0,.08);
+      border: 1px solid rgba(255,179,0,.3);
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .zoom-btn {
+      background: none; border: none; color: #78909c; cursor: pointer;
+      font-size: 11px; padding: 2px 4px; border-radius: 3px;
+      transition: color .15s;
+    }
+    .zoom-btn:hover { color: #4fc3f7; }
+
+    #export-section { border-top: 1px solid #0f3460; padding: 8px 12px; }
+    #export-section .sec-title {
+      font-size: 10px; color: #546e7a; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 6px;
+    }
+    .export-btn {
+      display: flex; align-items: center; gap: 6px; width: 100%;
+      padding: 5px 8px; background: none;
+      border: 1px solid #0f3460; border-radius: 4px;
+      color: #90a4ae; font-size: 11px; cursor: pointer;
+      margin-bottom: 4px; transition: all .15s;
+    }
+    .export-btn:hover { border-color: #29b6f6; color: #4fc3f7; background: rgba(41,182,246,.05); }
+
+    #map { flex: 1; background: #1a1a2e; }
+
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      padding: 10px 16px; border-radius: 6px;
+      font-size: 13px; z-index: 9999;
+      opacity: 0; transform: translateY(8px);
+      transition: all .25s; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #1b5e20; border: 1px solid #388e3c; color: #a5d6a7; }
+    #toast.error   { background: #b71c1c; border: 1px solid #c62828; color: #ffcdd2; }
+    #toast.info    { background: #0d47a1; border: 1px solid #1565c0; color: #bbdefb; }
+
+    .leaflet-control-zoom a {
+      background: #16213e !important;
+      color: #4fc3f7 !important;
+      border-color: #0f3460 !important;
+    }
+    .leaflet-control-zoom a:hover { background: #0f3460 !important; }
+    .leaflet-control-attribution {
+      background: rgba(22,33,62,.8) !important;
+      color: #546e7a !important; font-size: 10px !important;
+    }
+    .leaflet-control-attribution a { color: #78909c !important; }
+
+    #coords {
+      position: absolute;
+      bottom: 6px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(22,33,62,.85);
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: #78909c;
+      z-index: 500;
+      pointer-events: none;
+    }
+
+    /* Cursor stats panel — fixed top-right of map */
+    #cursor-stats {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(22,33,62,.92);
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #cfd8dc;
+      z-index: 500;
+      max-width: 260px;
+      min-width: 200px;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    }
+    #cursor-stats h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #4fc3f7;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    #cursor-stats .stat-row {
+      display: flex; justify-content: space-between;
+      padding: 1px 0;
+      gap: 10px;
+    }
+    #cursor-stats .stat-row .k { color: #78909c; }
+    #cursor-stats .stat-row .v { color: #e0e0e0; font-variant-numeric: tabular-nums; }
+    #cursor-stats.hidden { display: none; }
+
+    #empty-state {
+      text-align: center;
+      padding: 24px 16px;
+      color: #546e7a;
+      font-size: 12px;
+    }
+    #empty-state i { font-size: 28px; display: block; margin-bottom: 8px; color: #37474f; }
+
+    /* User management modal */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.6);
+      z-index: 5000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 540px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #0f3460;
+    }
+    .modal-header h3 { font-size: 14px; color: #4fc3f7; }
+    .modal-close {
+      background: none; border: none;
+      color: #78909c; cursor: pointer;
+      font-size: 16px;
+    }
+    .modal-body { padding: 12px 16px; overflow-y: auto; }
+    .users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .users-table th, .users-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #0f3460;
+      text-align: left;
+    }
+    .users-table th { color: #78909c; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .users-table td input[type="checkbox"] { accent-color: #29b6f6; }
+  </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <div class="brand-mark"><i class="fa-solid fa-water"></i></div>
+  <div class="brand-text">
+    <span class="brand-name">SWAMP</span>
+    <span class="brand-sub">Surface Water Monitoring Platform · SPARRSO</span>
+  </div>
+
+  <div class="topbar-sep"></div>
+
+  <button class="base-btn active" data-base="osm"><i class="fa-solid fa-map"></i> Map</button>
+  <button class="base-btn" data-base="satellite"><i class="fa-solid fa-satellite"></i> Satellite</button>
+  <button class="base-btn" data-base="terrain"><i class="fa-solid fa-mountain"></i> Terrain</button>
+  <button class="base-btn" data-base="dark"><i class="fa-solid fa-moon"></i> Dark</button>
+
+  <div class="topbar-right">
+    <button id="btn-users" class="icon-btn subtle" style="display:none;" title="Manage users">
+      <i class="fa-solid fa-users-gear"></i> Users
+    </button>
+    <button id="btn-export-png" class="icon-btn"><i class="fa-solid fa-image"></i> Export PNG</button>
+    <div id="user-chip" class="user-chip">
+      <i class="fa-solid fa-user"></i>
+      <span id="user-name">—</span>
+      <span id="user-role" class="role">user</span>
+    </div>
+    <a href="/logout/" class="icon-btn subtle" title="Sign out"><i class="fa-solid fa-right-from-bracket"></i></a>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>Layers</span>
+      <span id="layer-count" style="color:#37474f;font-weight:400;">0 layers</span>
+    </div>
+
+    <div id="upload-area">
+      <div id="upload-drop">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        Drop files or click to upload<br>
+        <span style="font-size:10px;color:#37474f;">TIF · SHP (zip) · GeoJSON · KML</span>
+      </div>
+      <input type="file" id="file-input"
+             accept=".tif,.tiff,.geojson,.json,.zip,.kml,.img" multiple />
+      <div id="upload-options" style="display:none;">
+        <input type="checkbox" id="upload-locked" />
+        <label for="upload-locked">Lock layer (admin-only edits)</label>
+      </div>
+      <div id="upload-progress">
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+        <div id="upload-status">Uploading...</div>
+      </div>
+    </div>
+
+    <div id="layer-list">
+      <div id="empty-state">
+        <i class="fa-solid fa-layer-group"></i>
+        No layers yet.<br>Upload a file to get started.
+      </div>
+    </div>
+
+    <div id="export-section">
+      <div class="sec-title">Export</div>
+      <button class="export-btn" id="btn-export-view">
+        <i class="fa-solid fa-image"></i> Save map as PNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+  <div id="coords">Lat: — Lng: —</div>
+
+  <!-- Cursor stats panel -->
+  <div id="cursor-stats" class="hidden">
+    <h4><i class="fa-solid fa-crosshairs"></i> Cursor</h4>
+    <div id="cursor-stats-body"></div>
+  </div>
+</div>
+
+<!-- User management modal -->
+<div id="users-modal" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-users-gear"></i> User Access Management</h3>
+      <button class="modal-close" data-close="users-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <table class="users-table">
+        <thead>
+          <tr><th>Username</th><th>Email</th><th>Admin</th><th>Active</th></tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
+<script src="https://unpkg.com/georaster-layer-for-leaflet@4.1.2/dist/georaster-layer-for-leaflet.min.js"></script>
+<script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"></script>
+<script src="https://unpkg.com/chroma-js@2.4.2/chroma.min.js"></script>
+
+<script>
+// ─── Bootstrap data from Django ─────────────────────────────────────────────
+const INITIAL_LAYERS = {{ layers_json|safe }};
+const CURRENT_USER   = {{ user_json|safe }};
+const IS_ADMIN       = !!CURRENT_USER.is_staff || !!CURRENT_USER.is_superuser;
+
+// CSRF cookie helper
+function getCookie(name) {
+  const v = `; ${document.cookie}`;
+  const parts = v.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return '';
+}
+function csrfHeaders() {
+  return { 'X-CSRFToken': getCookie('csrftoken') };
+}
+
+// ─── User chip ──────────────────────────────────────────────────────────────
+document.getElementById('user-name').textContent = CURRENT_USER.username || 'guest';
+const roleEl = document.getElementById('user-role');
+roleEl.textContent = IS_ADMIN ? 'admin' : 'user';
+if (IS_ADMIN) roleEl.classList.add('admin');
+
+// Show admin-only controls
+if (IS_ADMIN) {
+  document.getElementById('btn-users').style.display = '';
+  document.getElementById('upload-options').style.display = 'flex';
+}
+
+// ─── Map init ───────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [23.685, 90.356], zoom: 7, zoomControl: true });
+
+const baseLayers = {
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+  }),
+  satellite: L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Esri World Imagery', maxZoom: 19 }
+  ),
+  terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'OpenTopoMap', maxZoom: 17
+  }),
+  dark: L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    { attribution: '&copy; CartoDB', maxZoom: 19 }
+  ),
+};
+
+let currentBase = 'osm';
+baseLayers.osm.addTo(map);
+document.querySelectorAll('.base-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.base;
+    if (key === currentBase) return;
+    baseLayers[currentBase].remove();
+    baseLayers[key].addTo(map);
+    currentBase = key;
+    document.querySelectorAll('.base-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+map.on('mousemove', e => {
+  document.getElementById('coords').textContent =
+    `Lat: ${e.latlng.lat.toFixed(5)}  Lng: ${e.latlng.lng.toFixed(5)}`;
+});
+
+// ─── Layer state ────────────────────────────────────────────────────────────
+const layerMap = {}; // id → { data, leafletLayer, outlineLayer }
+let layers = [];
+
+// ─── Color ramp helpers ─────────────────────────────────────────────────────
+const NAMED_RAMPS = {
+  viridis: ['#440154','#3b528b','#21918c','#5ec962','#fde725'],
+  magma:   ['#000004','#3b0f70','#8c2981','#de4968','#fe9f6d','#fcfdbf'],
+  blues:   ['#f7fbff','#c6dbef','#6baed6','#2171b5','#08306b'],
+  reds:    ['#fff5f0','#fcbba1','#fb6a4a','#cb181d','#67000d'],
+  water:   ['#0d1b2a','#0d47a1','#1976d2','#29b6f6','#80deea','#e0f7fa'],
+  flood:   ['#003c30','#01665e','#35978f','#80cdc1','#c7eae5','#f5f5f5','#f6e8c3','#dfc27d','#bf812d','#8c510a'],
+  rainbow: ['#0000ff','#00ffff','#00ff00','#ffff00','#ff7f00','#ff0000'],
+};
+
+function buildRamp(layer) {
+  const sc = layer.style_config || {};
+  // Custom stops take precedence
+  if (Array.isArray(sc.color_stops) && sc.color_stops.length >= 2) {
+    const sorted = [...sc.color_stops].sort((a,b) => a.value - b.value);
+    const domain = sorted.map(s => s.value);
+    const colors = sorted.map(s => s.color);
+    return chroma.scale(colors).domain(domain).mode(sc.color_interp || 'rgb');
+  }
+  const ramp = NAMED_RAMPS[sc.color_ramp] || NAMED_RAMPS.viridis;
+  const stats = (sc.band_stats || [])[(sc.single_band || 1) - 1] || { min: 0, max: 1 };
+  const min = (sc.value_min !== undefined) ? sc.value_min : stats.min;
+  const max = (sc.value_max !== undefined) ? sc.value_max : stats.max;
+  return chroma.scale(ramp).domain([min, max]).mode(sc.color_interp || 'rgb');
+}
+
+function rampPreviewCss(layer) {
+  const sc = layer.style_config || {};
+  let colors;
+  if (Array.isArray(sc.color_stops) && sc.color_stops.length >= 2) {
+    colors = [...sc.color_stops].sort((a,b)=>a.value-b.value).map(s => s.color);
+  } else {
+    colors = NAMED_RAMPS[sc.color_ramp] || NAMED_RAMPS.viridis;
+  }
+  return `linear-gradient(to right, ${colors.join(',')})`;
+}
+
+// ─── Raster rendering ───────────────────────────────────────────────────────
+async function addRasterLayer(layerData) {
+  const response = await fetch(layerData.file_url);
+  const arrayBuffer = await response.arrayBuffer();
+  const georaster = await parseGeoraster(arrayBuffer);
+
+  const sc = layerData.style_config || {};
+  const noData = sc.nodata;
+
+  const ramp = buildRamp(layerData);
+  const renderMode = sc.render_mode || (georaster.numberOfRasters > 1 ? 'rgb' : 'single');
+  const singleBand = (sc.single_band || 1) - 1;
+  const rgbBands = (sc.rgb_bands || [1, 2, 3]).map(b => b - 1);
+  const stats = (sc.band_stats || [])[singleBand] || { min: 0, max: 1 };
+
+  function pixelValuesToColorFn(values) {
+    if (!values || values.every(v => v === null || v === undefined)) return null;
+    if (noData !== null && noData !== undefined) {
+      if (values[0] === noData) return null;
+    }
+    if (renderMode === 'rgb' && values.length >= 3) {
+      const [r, g, b] = [
+        values[rgbBands[0]] ?? 0,
+        values[rgbBands[1]] ?? 0,
+        values[rgbBands[2]] ?? 0,
+      ];
+      // Stretch each channel between band stats if available
+      const stretch = (v, idx) => {
+        const st = (sc.band_stats || [])[rgbBands[idx]];
+        if (!st || st.max === st.min) return Math.max(0, Math.min(255, v));
+        const t = (v - st.min) / (st.max - st.min);
+        return Math.max(0, Math.min(255, Math.round(t * 255)));
+      };
+      return `rgb(${stretch(r,0)},${stretch(g,1)},${stretch(b,2)})`;
+    }
+    // Single-band → color ramp
+    const v = values[singleBand];
+    if (v === null || v === undefined || isNaN(v)) return null;
+    return ramp(v).hex();
+  }
+
+  const leafletLayer = new GeoRasterLayer({
+    georaster,
+    opacity: layerData.opacity,
+    resolution: 256,
+    pixelValuesToColorFn,
+  });
+
+  leafletLayer.addTo(map);
+  return leafletLayer;
+}
+
+// ─── Vector rendering ───────────────────────────────────────────────────────
+function vectorStyleFn(layerData) {
+  const sc = layerData.style_config || {};
+  const baseColor = sc.color || '#29b6f6';
+  const baseWeight = sc.weight !== undefined ? sc.weight : 1.5;
+  const fillOpacity = sc.fillOpacity !== undefined ? sc.fillOpacity : 0.3;
+
+  // Data-driven coloring
+  let ramp = null;
+  if (sc.color_attribute) ramp = buildRamp(layerData);
+
+  return (feature) => {
+    const props = feature.properties || {};
+    let color = baseColor;
+    let weight = baseWeight;
+
+    if (sc.color_attribute && ramp) {
+      const v = parseFloat(props[sc.color_attribute]);
+      if (!isNaN(v)) color = ramp(v).hex();
+    }
+
+    if (sc.width_attribute) {
+      const v = parseFloat(props[sc.width_attribute]);
+      if (!isNaN(v)) {
+        const min = sc.width_attr_min ?? 0;
+        const max = sc.width_attr_max ?? 1;
+        const wMin = sc.width_min ?? 1;
+        const wMax = sc.width_max ?? 8;
+        const t = (max === min) ? 0.5 : Math.max(0, Math.min(1, (v - min) / (max - min)));
+        weight = wMin + t * (wMax - wMin);
+      }
+    }
+
+    return {
+      color,
+      weight,
+      fillColor: color,
+      fillOpacity,
+      opacity: layerData.opacity,
+    };
+  };
+}
+
+function addVectorLayer(layerData) {
+  const url = layerData.geojson_url || layerData.file_url;
+  const styleFn = vectorStyleFn(layerData);
+
+  const layer = L.geoJSON(null, {
+    style: styleFn,
+    pointToLayer: (feature, latlng) => {
+      const s = styleFn(feature);
+      return L.circleMarker(latlng, { radius: 5, ...s });
+    },
+    onEachFeature: (feature, lyr) => {
+      if (feature.properties) {
+        const rows = Object.entries(feature.properties)
+          .map(([k, v]) => `<tr><td style="color:#78909c;padding-right:8px">${k}</td><td>${v ?? ''}</td></tr>`)
+          .join('');
+        lyr.bindPopup(`<table style="font-size:12px;border-collapse:collapse">${rows}</table>`);
+      }
+    },
+  });
+
+  fetch(url).then(r => r.json()).then(gj => layer.addData(gj))
+    .catch(err => console.error('GeoJSON load error', err));
+
+  layer.addTo(map);
+  return layer;
+}
+
+// ─── Always-visible boundary outline ────────────────────────────────────────
+function makeOutlineLayer(layerData) {
+  if (!layerData.outline_visible) return null;
+  if (!layerData.bbox) return null;
+  const [w, s, e, n] = layerData.bbox;
+  return L.rectangle([[s, w], [n, e]], {
+    color: layerData.outline_color || '#29b6f6',
+    weight: layerData.outline_weight || 2,
+    fill: false,
+    opacity: 1,        // always full opacity — independent of layer opacity
+    interactive: false,
+    dashArray: '4, 3',
+  });
+}
+
+// ─── Load / unload layers ───────────────────────────────────────────────────
+async function loadLayer(layerData) {
+  let leafletLayer;
+  try {
+    if (layerData.type === 'raster') {
+      leafletLayer = await addRasterLayer(layerData);
+    } else {
+      leafletLayer = addVectorLayer(layerData);
+    }
+  } catch (e) {
+    console.error('Layer load error:', e);
+    showToast(`Failed to load "${layerData.name}"`, 'error');
+    return;
+  }
+
+  const outlineLayer = makeOutlineLayer(layerData);
+  if (outlineLayer && layerData.visible) outlineLayer.addTo(map);
+
+  if (!layerData.visible && leafletLayer) {
+    map.removeLayer(leafletLayer);
+  }
+
+  layerMap[layerData.id] = { data: layerData, leafletLayer, outlineLayer };
+}
+
+function removeLeafletLayer(id) {
+  const e = layerMap[id];
+  if (!e) return;
+  if (e.leafletLayer) map.removeLayer(e.leafletLayer);
+  if (e.outlineLayer) map.removeLayer(e.outlineLayer);
+}
+
+// Replace a layer's leaflet rendering after style changes
+async function reRenderLayer(id) {
+  const e = layerMap[id];
+  if (!e) return;
+  const wasVisible = e.data.visible;
+  removeLeafletLayer(id);
+
+  let leafletLayer;
+  if (e.data.type === 'raster') leafletLayer = await addRasterLayer(e.data);
+  else                          leafletLayer = addVectorLayer(e.data);
+
+  const outlineLayer = makeOutlineLayer(e.data);
+  if (outlineLayer && wasVisible) outlineLayer.addTo(map);
+  if (!wasVisible && leafletLayer) map.removeLayer(leafletLayer);
+
+  layerMap[id] = { data: e.data, leafletLayer, outlineLayer };
+}
+
+// ─── Sidebar rendering ──────────────────────────────────────────────────────
+const emptyState = document.getElementById('empty-state');
+let openSettingsId = null;
+
+function renderSidebar() {
+  const list = document.getElementById('layer-list');
+  const count = document.getElementById('layer-count');
+  count.textContent = `${layers.length} layer${layers.length !== 1 ? 's' : ''}`;
+
+  if (layers.length === 0) {
+    list.innerHTML = '';
+    list.appendChild(emptyState);
+    return;
+  }
+  if (emptyState.parentNode === list) list.removeChild(emptyState);
+
+  list.innerHTML = '';
+  [...layers].reverse().forEach(layer => {
+    list.appendChild(buildLayerItem(layer));
+  });
+}
+
+function buildLayerItem(layer) {
+  const item = document.createElement('div');
+  item.className = 'layer-item' + (layer.is_locked ? ' locked' : '');
+  item.dataset.id = layer.id;
+
+  const typeIcon = layer.type === 'raster'
+    ? '<i class="fa-solid fa-map-location-dot raster"></i>'
+    : '<i class="fa-solid fa-draw-polygon geojson"></i>';
+
+  const statusBadge = !layer.is_processed
+    ? `<span class="processing-badge">Processing</span>`
+    : layer.processing_error
+    ? `<span class="error-badge" title="${layer.processing_error}">Error</span>`
+    : '';
+
+  const lockBadge = layer.is_locked ? `<span class="lock-badge" title="Locked by admin"><i class="fa-solid fa-lock"></i></span>` : '';
+  const canEdit = layer.can_edit;
+
+  const lockBtn = IS_ADMIN
+    ? `<button class="layer-act-btn lock-toggle ${layer.is_locked ? 'on' : ''}" data-action="lock"
+              title="${layer.is_locked ? 'Unlock' : 'Lock'} layer">
+         <i class="fa-solid ${layer.is_locked ? 'fa-lock' : 'fa-lock-open'}"></i>
+       </button>`
+    : '';
+
+  const opacityDisabled = canEdit ? '' : 'disabled';
+
+  item.innerHTML = `
+    <div class="layer-row1">
+      <button class="layer-vis-btn ${layer.visible ? 'visible' : ''}" title="Toggle visibility">
+        <i class="fa-solid ${layer.visible ? 'fa-eye' : 'fa-eye-slash'}"></i>
+      </button>
+      <span class="layer-type-icon ${layer.type}">${typeIcon}</span>
+      <span class="layer-name ${layer.visible ? '' : 'hidden'}" title="${layer.name}">${layer.name}</span>
+      ${lockBadge}
+      ${statusBadge}
+      <div class="layer-actions">
+        ${lockBtn}
+        <button class="layer-act-btn" data-action="settings" title="Style & rendering">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
+        <button class="layer-act-btn zoom-btn" data-action="zoom" title="Zoom to layer">
+          <i class="fa-solid fa-expand"></i>
+        </button>
+        <button class="layer-act-btn" data-action="export" title="Export">
+          <i class="fa-solid fa-download"></i>
+        </button>
+        <button class="layer-act-btn del" data-action="delete" title="Delete layer" ${canEdit ? '' : 'disabled'}>
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="layer-row2">
+      <span style="font-size:10px;color:#546e7a;">Opacity</span>
+      <input type="range" class="opacity-slider" min="0" max="1" step="0.05"
+             value="${layer.opacity}" ${opacityDisabled} />
+      <span class="opacity-val">${Math.round(layer.opacity * 100)}%</span>
+    </div>
+  `;
+
+  item.querySelector('.layer-vis-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleLayerVisibility(layer.id);
+  });
+
+  const slider = item.querySelector('.opacity-slider');
+  const opVal = item.querySelector('.opacity-val');
+  slider.addEventListener('input', () => {
+    const op = parseFloat(slider.value);
+    opVal.textContent = Math.round(op * 100) + '%';
+    setLayerOpacity(layer.id, op);
+  });
+  slider.addEventListener('change', () => {
+    if (canEdit) updateLayerRemote(layer.id, { opacity: parseFloat(slider.value) });
+  });
+
+  item.querySelector('[data-action="zoom"]').addEventListener('click', e => {
+    e.stopPropagation();
+    zoomToLayer(layer.id);
+  });
+  item.querySelector('[data-action="export"]').addEventListener('click', e => {
+    e.stopPropagation();
+    exportLayer(layer);
+  });
+  item.querySelector('[data-action="delete"]').addEventListener('click', e => {
+    e.stopPropagation();
+    deleteLayer(layer.id);
+  });
+  item.querySelector('[data-action="settings"]').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleSettingsPanel(layer.id, item);
+  });
+  if (lockBtn) {
+    item.querySelector('[data-action="lock"]').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleLock(layer.id);
+    });
+  }
+
+  // Render settings panel if it's the open one
+  if (openSettingsId === layer.id) {
+    item.appendChild(buildSettingsPanel(layer));
+  }
+
+  return item;
+}
+
+// ─── Settings panel (per-layer) ─────────────────────────────────────────────
+function toggleSettingsPanel(id, item) {
+  if (openSettingsId === id) {
+    openSettingsId = null;
+  } else {
+    openSettingsId = id;
+  }
+  renderSidebar();
+}
+
+function buildSettingsPanel(layer) {
+  const panel = document.createElement('div');
+  panel.className = 'layer-settings open';
+
+  const sc = layer.style_config || {};
+  const canEdit = layer.can_edit;
+  const lockedNotice = !canEdit
+    ? `<div class="locked-notice"><i class="fa-solid fa-lock"></i> This layer is locked. Settings can only be changed by an admin.</div>`
+    : '';
+
+  // -- Tab structure
+  panel.innerHTML = `
+    ${lockedNotice}
+    <div class="ls-tabs">
+      ${layer.type === 'raster'
+        ? `<button class="ls-tab active" data-pane="render">Render</button>
+           <button class="ls-tab" data-pane="ramp">Color</button>`
+        : `<button class="ls-tab active" data-pane="vstyle">Style</button>
+           <button class="ls-tab" data-pane="ramp">Data Color</button>`
+      }
+      <button class="ls-tab" data-pane="outline">Outline</button>
+    </div>
+    <div class="ls-pane ${layer.type === 'raster' ? 'active' : ''}" data-pane="render"></div>
+    <div class="ls-pane ${layer.type !== 'raster' ? 'active' : ''}" data-pane="vstyle"></div>
+    <div class="ls-pane" data-pane="ramp"></div>
+    <div class="ls-pane" data-pane="outline"></div>
+  `;
+
+  // ── RASTER render pane: band selection, render mode
+  if (layer.type === 'raster') {
+    const bandCount = sc.band_count || 1;
+    const renderMode = sc.render_mode || (bandCount > 1 ? 'rgb' : 'single');
+    const single = sc.single_band || 1;
+    const rgb = sc.rgb_bands || [1, Math.min(2, bandCount), Math.min(3, bandCount)];
+    const bandOpts = (sel) => Array.from({ length: bandCount }, (_, i) =>
+      `<option value="${i+1}" ${sel===i+1?'selected':''}>Band ${i+1}</option>`
+    ).join('');
+
+    panel.querySelector('[data-pane="render"]').innerHTML = `
+      <h4>Multi-band rendering</h4>
+      <div class="ls-row">
+        <label>Mode</label>
+        <select data-bind="render_mode" ${canEdit?'':'disabled'}>
+          <option value="single" ${renderMode==='single'?'selected':''}>Single band → Color ramp</option>
+          <option value="rgb"    ${renderMode==='rgb'?'selected':''}    ${bandCount<3?'disabled':''}>RGB composite</option>
+        </select>
+      </div>
+      <div class="ls-row" data-mode="single" style="${renderMode==='single'?'':'display:none;'}">
+        <label>Band</label>
+        <select data-bind="single_band" ${canEdit?'':'disabled'}>${bandOpts(single)}</select>
+      </div>
+      <div data-mode="rgb" style="${renderMode==='rgb'?'':'display:none;'}">
+        <div class="ls-row"><label>Red</label>  <select data-bind="rgb_r" ${canEdit?'':'disabled'}>${bandOpts(rgb[0])}</select></div>
+        <div class="ls-row"><label>Green</label><select data-bind="rgb_g" ${canEdit?'':'disabled'}>${bandOpts(rgb[1])}</select></div>
+        <div class="ls-row"><label>Blue</label> <select data-bind="rgb_b" ${canEdit?'':'disabled'}>${bandOpts(rgb[2])}</select></div>
+      </div>
+      <div class="ls-row" style="font-size:10px;color:#546e7a;">
+        ${bandCount} band${bandCount!==1?'s':''} · ${sc.dtype || ''}
+      </div>
+    `;
+  } else {
+    // ── VECTOR style pane: solid color + width by attribute
+    const attrs = sc.attributes || []; // populated lazily on first open
+    const baseColor = sc.color || '#29b6f6';
+    const baseWeight = sc.weight ?? 1.5;
+    const fillO = sc.fillOpacity ?? 0.3;
+    const widthAttr = sc.width_attribute || '';
+    const wMin = sc.width_min ?? 1;
+    const wMax = sc.width_max ?? 8;
+    const wAMin = sc.width_attr_min ?? '';
+    const wAMax = sc.width_attr_max ?? '';
+
+    panel.querySelector('[data-pane="vstyle"]').innerHTML = `
+      <h4>Base style</h4>
+      <div class="ls-row">
+        <label>Color</label>
+        <input type="color" data-bind="color" value="${baseColor}" ${canEdit?'':'disabled'}/>
+        <input type="text" data-bind="color_text" value="${baseColor}" ${canEdit?'':'disabled'}/>
+      </div>
+      <div class="ls-row">
+        <label>Stroke</label>
+        <input type="range" min="0.5" max="10" step="0.5" data-bind="weight" value="${baseWeight}" ${canEdit?'':'disabled'}/>
+        <span class="num" data-out="weight">${baseWeight}</span>
+      </div>
+      <div class="ls-row">
+        <label>Fill α</label>
+        <input type="range" min="0" max="1" step="0.05" data-bind="fillOpacity" value="${fillO}" ${canEdit?'':'disabled'}/>
+        <span class="num" data-out="fillOpacity">${fillO}</span>
+      </div>
+      <h4 style="margin-top:8px;">Stroke width by attribute</h4>
+      <div class="ls-row">
+        <label>Attribute</label>
+        <select data-bind="width_attribute" ${canEdit?'':'disabled'}>
+          <option value="">— none —</option>
+          ${attrs.map(a => `<option value="${a}" ${widthAttr===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div class="ls-row">
+        <label>Value range</label>
+        <input type="number" data-bind="width_attr_min" value="${wAMin}" placeholder="min" ${canEdit?'':'disabled'}/>
+        <input type="number" data-bind="width_attr_max" value="${wAMax}" placeholder="max" ${canEdit?'':'disabled'}/>
+      </div>
+      <div class="ls-row">
+        <label>Width range</label>
+        <input type="number" data-bind="width_min" value="${wMin}" step="0.5" ${canEdit?'':'disabled'}/>
+        <input type="number" data-bind="width_max" value="${wMax}" step="0.5" ${canEdit?'':'disabled'}/>
+      </div>
+      <div style="font-size:10px;color:#546e7a;margin-top:4px;">
+        Higher attribute values render thicker — e.g. wider rivers from a "discharge" field.
+      </div>
+    `;
+  }
+
+  // ── Color ramp pane (single-band rasters or vector data-driven color)
+  panel.querySelector('[data-pane="ramp"]').innerHTML = renderRampPane(layer);
+
+  // ── Outline pane
+  panel.querySelector('[data-pane="outline"]').innerHTML = `
+    <h4>Boundary outline</h4>
+    <div style="font-size:10px;color:#78909c;margin-bottom:6px;">
+      Always rendered at full opacity even when the layer itself is faded.
+    </div>
+    <div class="ls-row">
+      <label>Visible</label>
+      <input type="checkbox" data-bind="outline_visible" ${layer.outline_visible?'checked':''} ${canEdit?'':'disabled'}/>
+    </div>
+    <div class="ls-row">
+      <label>Color</label>
+      <input type="color" data-bind="outline_color" value="${layer.outline_color || '#29b6f6'}" ${canEdit?'':'disabled'}/>
+    </div>
+    <div class="ls-row">
+      <label>Width</label>
+      <input type="range" min="0.5" max="6" step="0.5" data-bind="outline_weight" value="${layer.outline_weight || 2}" ${canEdit?'':'disabled'}/>
+      <span class="num" data-out="outline_weight">${layer.outline_weight || 2}</span>
+    </div>
+  `;
+
+  // -- Tab switching
+  panel.querySelectorAll('.ls-tab').forEach(tab => {
+    tab.addEventListener('click', e => {
+      e.stopPropagation();
+      panel.querySelectorAll('.ls-tab').forEach(t => t.classList.remove('active'));
+      panel.querySelectorAll('.ls-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      panel.querySelector(`.ls-pane[data-pane="${tab.dataset.pane}"]`).classList.add('active');
+    });
+  });
+
+  // -- Bind handlers (only when canEdit)
+  if (canEdit) attachSettingsHandlers(panel, layer);
+
+  // For vector layers, lazily fetch attribute names if not cached yet
+  if (layer.type !== 'raster' && !(sc.attributes || []).length) {
+    fetchAttributesForVector(layer);
+  }
+
+  // Stop click bubbling from the panel
+  panel.addEventListener('click', e => e.stopPropagation());
+
+  return panel;
+}
+
+function renderRampPane(layer) {
+  const sc = layer.style_config || {};
+  const canEdit = layer.can_edit;
+  const stops = Array.isArray(sc.color_stops) ? sc.color_stops : [];
+  const useStops = stops.length >= 2;
+  const ramp = sc.color_ramp || 'viridis';
+  const stats = (sc.band_stats || [])[(sc.single_band || 1) - 1] || { min: 0, max: 1 };
+  const vmin = sc.value_min ?? stats.min;
+  const vmax = sc.value_max ?? stats.max;
+
+  const isVector = layer.type !== 'raster';
+  const attrSelector = isVector ? `
+    <div class="ls-row">
+      <label>Attribute</label>
+      <select data-bind="color_attribute" ${canEdit?'':'disabled'}>
+        <option value="">— none —</option>
+        ${(sc.attributes||[]).map(a =>
+          `<option value="${a}" ${sc.color_attribute===a?'selected':''}>${a}</option>`).join('')}
+      </select>
+    </div>` : '';
+
+  return `
+    <h4>${isVector ? 'Data-driven color' : 'Color ramp (single band)'}</h4>
+    ${attrSelector}
+    <div class="ls-row">
+      <label>Preset</label>
+      <select data-bind="color_ramp" ${canEdit?'':'disabled'}>
+        ${Object.keys(NAMED_RAMPS).map(k =>
+          `<option value="${k}" ${ramp===k?'selected':''}>${k}</option>`).join('')}
+        <option value="custom" ${useStops?'selected':''}>custom stops</option>
+      </select>
+    </div>
+    <div class="ramp-preview" style="background: ${rampPreviewCss(layer)}"></div>
+    <div class="ls-row" style="margin-top:6px;">
+      <label>Range</label>
+      <input type="number" data-bind="value_min" value="${vmin}" step="any" ${canEdit?'':'disabled'}/>
+      <input type="number" data-bind="value_max" value="${vmax}" step="any" ${canEdit?'':'disabled'}/>
+    </div>
+    <h4 style="margin-top:8px;">Custom stops <span style="color:#546e7a;font-weight:400;text-transform:none;">(value · color)</span></h4>
+    <div class="stops-list" data-stops>
+      ${stops.map((s, i) => stopRowHtml(s, i, canEdit)).join('')}
+    </div>
+    <button class="add-stop" data-add-stop ${canEdit?'':'disabled'}><i class="fa-solid fa-plus"></i> Add stop</button>
+  `;
+}
+
+function stopRowHtml(stop, i, canEdit) {
+  return `
+    <div class="stop-row" data-stop-i="${i}">
+      <input type="number" step="any" data-stop-value value="${stop.value}" ${canEdit?'':'disabled'}/>
+      <input type="color" data-stop-color value="${stop.color}" ${canEdit?'':'disabled'}/>
+      <button class="del-stop" data-del-stop title="Remove" ${canEdit?'':'disabled'}>
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>`;
+}
+
+function attachSettingsHandlers(panel, layer) {
+  // Persist debounce
+  const remoteSave = debounce((sc, top) => {
+    const payload = { style_config: sc };
+    if (top) Object.assign(payload, top);
+    updateLayerRemote(layer.id, payload);
+  }, 350);
+
+  function applySC(patch, opts={}) {
+    const data = layerMap[layer.id]?.data;
+    if (!data) return;
+    data.style_config = { ...data.style_config, ...patch };
+    // Update layers list mirror
+    const idx = layers.findIndex(l => l.id === layer.id);
+    if (idx !== -1) layers[idx].style_config = data.style_config;
+    if (opts.rerender) reRenderLayer(layer.id);
+    remoteSave(data.style_config);
+  }
+
+  function applyTop(patch, opts={}) {
+    const data = layerMap[layer.id]?.data;
+    if (!data) return;
+    Object.assign(data, patch);
+    const idx = layers.findIndex(l => l.id === layer.id);
+    if (idx !== -1) Object.assign(layers[idx], patch);
+    if (opts.rerenderOutline) {
+      if (layerMap[layer.id].outlineLayer) map.removeLayer(layerMap[layer.id].outlineLayer);
+      const newOutline = makeOutlineLayer(data);
+      if (newOutline && data.visible) newOutline.addTo(map);
+      layerMap[layer.id].outlineLayer = newOutline;
+    }
+    remoteSave(null, patch);
+  }
+
+  // Render mode (raster)
+  const modeSel = panel.querySelector('[data-bind="render_mode"]');
+  if (modeSel) modeSel.addEventListener('change', () => {
+    panel.querySelector('[data-mode="single"]').style.display = modeSel.value==='single'?'':'none';
+    panel.querySelector('[data-mode="rgb"]').style.display    = modeSel.value==='rgb'?'':'none';
+    applySC({ render_mode: modeSel.value }, { rerender: true });
+  });
+
+  ['single_band','rgb_r','rgb_g','rgb_b'].forEach(name => {
+    const el = panel.querySelector(`[data-bind="${name}"]`);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      const data = layerMap[layer.id].data;
+      const sc = data.style_config;
+      if (name === 'single_band') applySC({ single_band: parseInt(el.value, 10) }, { rerender: true });
+      else {
+        const r = parseInt(panel.querySelector('[data-bind="rgb_r"]').value, 10);
+        const g = parseInt(panel.querySelector('[data-bind="rgb_g"]').value, 10);
+        const b = parseInt(panel.querySelector('[data-bind="rgb_b"]').value, 10);
+        applySC({ rgb_bands: [r, g, b] }, { rerender: true });
+      }
+    });
+  });
+
+  // Vector base style
+  ['color','color_text'].forEach(n => {
+    const el = panel.querySelector(`[data-bind="${n}"]`);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const v = el.value;
+      const colorEl = panel.querySelector('[data-bind="color"]');
+      const textEl = panel.querySelector('[data-bind="color_text"]');
+      if (colorEl && textEl) { colorEl.value = v; textEl.value = v; }
+      applySC({ color: v }, { rerender: true });
+    });
+  });
+  const weightEl = panel.querySelector('[data-bind="weight"]');
+  if (weightEl) weightEl.addEventListener('input', () => {
+    panel.querySelector('[data-out="weight"]').textContent = weightEl.value;
+    applySC({ weight: parseFloat(weightEl.value) }, { rerender: true });
+  });
+  const fillOEl = panel.querySelector('[data-bind="fillOpacity"]');
+  if (fillOEl) fillOEl.addEventListener('input', () => {
+    panel.querySelector('[data-out="fillOpacity"]').textContent = fillOEl.value;
+    applySC({ fillOpacity: parseFloat(fillOEl.value) }, { rerender: true });
+  });
+
+  // Width-by-attribute
+  ['width_attribute','width_attr_min','width_attr_max','width_min','width_max'].forEach(name => {
+    const el = panel.querySelector(`[data-bind="${name}"]`);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      const v = (name === 'width_attribute') ? el.value :
+                (el.value === '' ? null : parseFloat(el.value));
+      applySC({ [name]: v }, { rerender: true });
+    });
+  });
+
+  // Color ramp
+  const rampSel = panel.querySelector('[data-bind="color_ramp"]');
+  if (rampSel) rampSel.addEventListener('change', () => {
+    if (rampSel.value === 'custom') {
+      // ensure at least 2 stops
+      const sc = layerMap[layer.id].data.style_config;
+      const existing = sc.color_stops || [];
+      if (existing.length < 2) {
+        const stats = (sc.band_stats || [])[(sc.single_band||1)-1] || {min:0,max:1};
+        applySC({ color_stops: [
+          { value: stats.min, color: '#0d47a1' },
+          { value: stats.max, color: '#80deea' },
+        ]}, { rerender: true });
+      } else {
+        reRenderLayer(layer.id);
+      }
+    } else {
+      applySC({ color_ramp: rampSel.value, color_stops: [] }, { rerender: true });
+    }
+    // refresh ramp preview
+    const ramp = panel.querySelector('.ramp-preview');
+    if (ramp) ramp.style.background = rampPreviewCss(layerMap[layer.id].data);
+  });
+  ['value_min','value_max'].forEach(n => {
+    const el = panel.querySelector(`[data-bind="${n}"]`);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      applySC({ [n]: el.value === '' ? null : parseFloat(el.value) }, { rerender: true });
+    });
+  });
+  const colorAttr = panel.querySelector('[data-bind="color_attribute"]');
+  if (colorAttr) colorAttr.addEventListener('change', () => {
+    applySC({ color_attribute: colorAttr.value || null }, { rerender: true });
+  });
+
+  // Stops
+  const stopsList = panel.querySelector('[data-stops]');
+  if (stopsList) {
+    stopsList.addEventListener('input', e => {
+      const row = e.target.closest('.stop-row'); if (!row) return;
+      const i = parseInt(row.dataset.stopI, 10);
+      const data = layerMap[layer.id].data;
+      const stops = [...(data.style_config.color_stops || [])];
+      stops[i] = {
+        value: parseFloat(row.querySelector('[data-stop-value]').value),
+        color: row.querySelector('[data-stop-color]').value,
+      };
+      applySC({ color_stops: stops }, { rerender: true });
+      const ramp = panel.querySelector('.ramp-preview');
+      if (ramp) ramp.style.background = rampPreviewCss(layerMap[layer.id].data);
+    });
+    stopsList.addEventListener('click', e => {
+      if (e.target.closest('[data-del-stop]')) {
+        const row = e.target.closest('.stop-row'); if (!row) return;
+        const i = parseInt(row.dataset.stopI, 10);
+        const data = layerMap[layer.id].data;
+        const stops = [...(data.style_config.color_stops || [])];
+        stops.splice(i, 1);
+        applySC({ color_stops: stops }, { rerender: true });
+        // re-render the panel content for stops list
+        const html = renderRampPane(layerMap[layer.id].data);
+        const ramp = panel.querySelector('[data-pane="ramp"]');
+        if (ramp) {
+          ramp.innerHTML = html;
+          attachSettingsHandlers(panel, layer);  // re-bind
+        }
+      }
+    });
+  }
+  const addStop = panel.querySelector('[data-add-stop]');
+  if (addStop) addStop.addEventListener('click', e => {
+    e.stopPropagation();
+    const data = layerMap[layer.id].data;
+    const stats = (data.style_config.band_stats || [])[(data.style_config.single_band||1)-1]
+      || { min: 0, max: 1 };
+    const stops = [...(data.style_config.color_stops || []),
+                   { value: (stats.min + stats.max) / 2, color: '#29b6f6' }];
+    applySC({ color_stops: stops }, { rerender: true });
+    const html = renderRampPane(layerMap[layer.id].data);
+    panel.querySelector('[data-pane="ramp"]').innerHTML = html;
+    attachSettingsHandlers(panel, layer);
+  });
+
+  // Outline
+  const oVis = panel.querySelector('[data-bind="outline_visible"]');
+  if (oVis) oVis.addEventListener('change', () => {
+    applyTop({ outline_visible: oVis.checked }, { rerenderOutline: true });
+  });
+  const oColor = panel.querySelector('[data-bind="outline_color"]');
+  if (oColor) oColor.addEventListener('input', () => {
+    applyTop({ outline_color: oColor.value }, { rerenderOutline: true });
+  });
+  const oWeight = panel.querySelector('[data-bind="outline_weight"]');
+  if (oWeight) oWeight.addEventListener('input', () => {
+    panel.querySelector('[data-out="outline_weight"]').textContent = oWeight.value;
+    applyTop({ outline_weight: parseFloat(oWeight.value) }, { rerenderOutline: true });
+  });
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+async function fetchAttributesForVector(layer) {
+  try {
+    const r = await fetch(layer.geojson_url || layer.file_url);
+    const gj = await r.json();
+    const features = gj.features || [];
+    if (!features.length) return;
+    const set = new Set();
+    features.slice(0, 50).forEach(f => {
+      Object.keys(f.properties || {}).forEach(k => set.add(k));
+    });
+    const attrs = [...set];
+    const data = layerMap[layer.id]?.data;
+    if (!data) return;
+    data.style_config = { ...data.style_config, attributes: attrs };
+    // Re-render panel if open
+    if (openSettingsId === layer.id) renderSidebar();
+  } catch (_) {}
+}
+
+// ─── Layer actions ──────────────────────────────────────────────────────────
+function toggleLayerVisibility(id) {
+  const entry = layerMap[id];
+  if (!entry) return;
+  const newVis = !entry.data.visible;
+  entry.data.visible = newVis;
+  if (entry.leafletLayer) {
+    if (newVis) entry.leafletLayer.addTo(map);
+    else map.removeLayer(entry.leafletLayer);
+  }
+  if (entry.outlineLayer) {
+    if (newVis) entry.outlineLayer.addTo(map);
+    else map.removeLayer(entry.outlineLayer);
+  }
+  if (entry.data.can_edit) updateLayerRemote(id, { visible: newVis });
+  const idx = layers.findIndex(l => l.id === id);
+  if (idx !== -1) layers[idx].visible = newVis;
+  renderSidebar();
+}
+
+function setLayerOpacity(id, opacity) {
+  const entry = layerMap[id];
+  if (!entry) return;
+  entry.data.opacity = opacity;
+  const ll = entry.leafletLayer;
+  if (ll && ll.setOpacity) ll.setOpacity(opacity);
+  else if (ll && ll.setStyle) ll.setStyle({ opacity, fillOpacity: opacity * 0.4 });
+  // outline stays at full opacity — never dimmed
+  const idx = layers.findIndex(l => l.id === id);
+  if (idx !== -1) layers[idx].opacity = opacity;
+}
+
+function zoomToLayer(id) {
+  const entry = layerMap[id];
+  if (!entry) return;
+  const bbox = entry.data.bbox;
+  if (bbox) map.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]]);
+  else if (entry.leafletLayer && entry.leafletLayer.getBounds) {
+    try { map.fitBounds(entry.leafletLayer.getBounds()); } catch (_) {}
+  }
+}
+
+async function deleteLayer(id) {
+  const data = layerMap[id]?.data;
+  if (!data) return;
+  if (!data.can_edit) {
+    showToast('Cannot delete a locked layer.', 'error'); return;
+  }
+  if (!confirm('Delete this layer?')) return;
+  removeLeafletLayer(id);
+  delete layerMap[id];
+  layers = layers.filter(l => l.id !== id);
+  if (openSettingsId === id) openSettingsId = null;
+  renderSidebar();
+  await fetch(`/api/layers/${id}/delete/`, {
+    method: 'DELETE', headers: csrfHeaders(),
+  });
+  showToast('Layer deleted', 'info');
+}
+
+async function toggleLock(id) {
+  const data = layerMap[id]?.data;
+  if (!data || !IS_ADMIN) return;
+  const newVal = !data.is_locked;
+  await updateLayerRemote(id, { is_locked: newVal });
+  data.is_locked = newVal;
+  data.can_edit = true; // admins always can
+  const idx = layers.findIndex(l => l.id === id);
+  if (idx !== -1) { layers[idx].is_locked = newVal; layers[idx].can_edit = true; }
+  renderSidebar();
+  showToast(newVal ? 'Layer locked' : 'Layer unlocked', 'info');
+}
+
+function exportLayer(layer) {
+  if (layer.type === 'raster') window.open(`/api/export/geotiff/${layer.id}/`, '_blank');
+  else window.open(`/api/export/geojson/${layer.id}/`, '_blank');
+}
+
+async function updateLayerRemote(id, data) {
+  try {
+    const r = await fetch(`/api/layers/${id}/update/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (r.status === 403) showToast(err.error || 'Forbidden', 'error');
+    }
+  } catch (e) { /* network errors handled silently for now */ }
+}
+
+// ─── Cursor stats (pixel value & area) ──────────────────────────────────────
+const cursorStatsEl = document.getElementById('cursor-stats');
+const cursorStatsBody = document.getElementById('cursor-stats-body');
+
+const sampleAtCursor = debounce(async (latlng) => {
+  // Find topmost visible raster at this point
+  const candidates = [...layers]
+    .filter(l => l.visible && l.type === 'raster' && l.is_processed && l.bbox)
+    .filter(l => {
+      const [w, s, e, n] = l.bbox;
+      return latlng.lng >= w && latlng.lng <= e && latlng.lat >= s && latlng.lat <= n;
+    })
+    .sort((a, b) => b.z_index - a.z_index);
+
+  if (!candidates.length) {
+    cursorStatsEl.classList.add('hidden');
+    return;
+  }
+  const layer = candidates[0];
+
+  try {
+    const r = await fetch(
+      `/api/layers/${layer.id}/pixel/?lat=${latlng.lat}&lng=${latlng.lng}`
+    );
+    const data = await r.json();
+    if (!data.in_bounds || data.error) {
+      cursorStatsEl.classList.add('hidden'); return;
+    }
+    const valStr = (v) => v === null ? '—' : (Math.abs(v) < 1 ? v.toFixed(4) : v.toFixed(2));
+    const area = data.pixel_area_m2;
+    const areaStr =
+      area > 1_000_000 ? `${(area/1_000_000).toFixed(3)} km²`
+      : area > 10_000  ? `${(area/10_000).toFixed(2)} ha`
+      : `${area.toFixed(1)} m²`;
+
+    let valuesHtml;
+    if (data.values && data.values.length > 1) {
+      valuesHtml = data.values.map((v, i) =>
+        `<div class="stat-row"><span class="k">Band ${i+1}</span><span class="v">${valStr(v)}</span></div>`
+      ).join('');
+    } else {
+      valuesHtml = `<div class="stat-row"><span class="k">Value</span><span class="v">${valStr(data.value)}</span></div>`;
+    }
+
+    cursorStatsBody.innerHTML = `
+      <div class="stat-row"><span class="k">Layer</span><span class="v" title="${layer.name}" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${layer.name}</span></div>
+      ${valuesHtml}
+      <div class="stat-row"><span class="k">Pixel area</span><span class="v">${areaStr}</span></div>
+      <div class="stat-row"><span class="k">Pixel</span><span class="v">[${data.row}, ${data.col}]</span></div>
+    `;
+    cursorStatsEl.classList.remove('hidden');
+  } catch (_) {
+    cursorStatsEl.classList.add('hidden');
+  }
+}, 80);
+
+map.on('mousemove', e => sampleAtCursor(e.latlng));
+map.on('mouseout', () => cursorStatsEl.classList.add('hidden'));
+
+// ─── File upload ────────────────────────────────────────────────────────────
+const uploadDrop = document.getElementById('upload-drop');
+const fileInput = document.getElementById('file-input');
+const uploadProgress = document.getElementById('upload-progress');
+const uploadStatus = document.getElementById('upload-status');
+const uploadLockedCb = document.getElementById('upload-locked');
+
+uploadDrop.addEventListener('click', () => fileInput.click());
+uploadDrop.addEventListener('dragover', e => {
+  e.preventDefault(); uploadDrop.classList.add('drag-over');
+});
+uploadDrop.addEventListener('dragleave', () => uploadDrop.classList.remove('drag-over'));
+uploadDrop.addEventListener('drop', e => {
+  e.preventDefault(); uploadDrop.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+async function handleFiles(files) {
+  for (const file of files) await uploadFile(file);
+}
+
+async function uploadFile(file) {
+  uploadProgress.style.display = 'block';
+  uploadStatus.textContent = `Uploading ${file.name}...`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', file.name.replace(/\.[^.]+$/, ''));
+  if (IS_ADMIN && uploadLockedCb && uploadLockedCb.checked) {
+    formData.append('is_locked', '1');
+  }
+
+  try {
+    const response = await fetch('/api/layers/upload/', {
+      method: 'POST', headers: csrfHeaders(), body: formData,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Upload failed');
+
+    const layerData = result.layer;
+    layers.push(layerData);
+    await loadLayer(layerData);
+    renderSidebar();
+    if (layerData.bbox) zoomToLayer(layerData.id);
+    showToast(`"${layerData.name}" added`, 'success');
+  } catch (err) {
+    showToast(`Upload failed: ${err.message}`, 'error');
+  } finally {
+    uploadProgress.style.display = 'none';
+    fileInput.value = '';
+  }
+}
+
+// ─── Export PNG ─────────────────────────────────────────────────────────────
+function exportMapPNG() {
+  showToast('Generating PNG...', 'info');
+  leafletImage(map, (err, canvas) => {
+    if (err) { showToast('Export failed: ' + err, 'error'); return; }
+    const link = document.createElement('a');
+    link.download = 'swamp-map.png';
+    link.href = canvas.toDataURL();
+    link.click();
+    showToast('PNG exported', 'success');
+  });
+}
+document.getElementById('btn-export-png').addEventListener('click', exportMapPNG);
+document.getElementById('btn-export-view').addEventListener('click', exportMapPNG);
+
+// ─── User management modal (admin only) ─────────────────────────────────────
+const usersModal = document.getElementById('users-modal');
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById(btn.dataset.close).classList.remove('open');
+  });
+});
+const btnUsers = document.getElementById('btn-users');
+if (btnUsers) {
+  btnUsers.addEventListener('click', async () => {
+    const r = await fetch('/api/users/');
+    if (!r.ok) { showToast('Cannot load users', 'error'); return; }
+    const data = await r.json();
+    const tbody = document.getElementById('users-tbody');
+    tbody.innerHTML = data.users.map(u => `
+      <tr data-uid="${u.id}">
+        <td>${u.username}${u.id === CURRENT_USER.id ? ' <span style="color:#4fc3f7;font-size:10px;">(you)</span>' : ''}</td>
+        <td style="color:#78909c;">${u.email || '—'}</td>
+        <td><input type="checkbox" data-field="is_staff" ${u.is_staff?'checked':''} ${u.id === CURRENT_USER.id ? 'disabled' : ''}/></td>
+        <td><input type="checkbox" data-field="is_active" ${u.is_active?'checked':''} ${u.id === CURRENT_USER.id ? 'disabled' : ''}/></td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const tr = cb.closest('tr');
+        const uid = tr.dataset.uid;
+        const payload = { [cb.dataset.field]: cb.checked };
+        const resp = await fetch(`/api/users/${uid}/update/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) {
+          showToast('Update failed', 'error');
+          cb.checked = !cb.checked;
+        } else {
+          showToast('User updated', 'success');
+        }
+      });
+    });
+    usersModal.classList.add('open');
+  });
+}
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+}
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  layers = INITIAL_LAYERS;
+  renderSidebar();
+  for (const layer of layers) await loadLayer(layer);
+}
+init();
+</script>
+</body>
+</html>
