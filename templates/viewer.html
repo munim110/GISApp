@@ -745,9 +745,8 @@ function rampPreviewCss(layer) {
 
 // ─── Raster rendering ───────────────────────────────────────────────────────
 async function addRasterLayer(layerData) {
-  const response = await fetch(layerData.file_url);
-  const arrayBuffer = await response.arrayBuffer();
-  const georaster = await parseGeoraster(arrayBuffer);
+  const fileUrl = new URL(layerData.file_url, window.location.origin).href;
+  const georaster = await parseGeoraster(fileUrl);
 
   const sc = layerData.style_config || {};
   const noData = sc.nodata;
@@ -896,13 +895,14 @@ async function loadLayer(layerData) {
   }
 
   const outlineLayer = makeOutlineLayer(layerData);
-  if (outlineLayer && layerData.visible) outlineLayer.addTo(map);
 
-  if (!layerData.visible && leafletLayer) {
-    map.removeLayer(leafletLayer);
-  }
+  // Read current visible state — may have been toggled while this async load was in progress
+  const currentlyVisible = layerMap[layerData.id]?.data.visible ?? layerData.visible;
+  if (outlineLayer && currentlyVisible) outlineLayer.addTo(map);
+  if (!currentlyVisible && leafletLayer) map.removeLayer(leafletLayer);
 
-  layerMap[layerData.id] = { data: layerData, leafletLayer, outlineLayer };
+  // Update the pre-seeded entry rather than replacing it, to preserve any state changes
+  layerMap[layerData.id] = { data: layerMap[layerData.id]?.data ?? layerData, leafletLayer, outlineLayer };
 }
 
 function removeLeafletLayer(id) {
@@ -1783,6 +1783,10 @@ function showToast(msg, type = 'info') {
 // ─── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   layers = INITIAL_LAYERS;
+  // Pre-seed layerMap so visibility toggles during slow raster loads aren't lost
+  for (const layer of layers) {
+    layerMap[layer.id] = { data: layer, leafletLayer: null, outlineLayer: null };
+  }
   renderSidebar();
   for (const layer of layers) await loadLayer(layer);
 }

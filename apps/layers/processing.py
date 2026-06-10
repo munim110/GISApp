@@ -39,6 +39,32 @@ def process_layer(layer):
 # Raster
 # ---------------------------------------------------------------------------
 
+def _to_cog(path):
+    """Rewrite a GeoTIFF as a Cloud Optimized GeoTIFF in-place."""
+    import rasterio
+    from rasterio.enums import Resampling
+    from rasterio.shutil import copy as rio_copy
+
+    tmp_path = path + ".tmp.tif"
+    cog_path = path + ".cog.tif"
+    try:
+        rio_copy(path, tmp_path, driver="GTiff")
+        with rasterio.open(tmp_path, "r+") as ds:
+            ds.build_overviews([2, 4, 8, 16, 32, 64], Resampling.average)
+            ds.update_tags(ns="rio_overview", resampling="average")
+        rio_copy(tmp_path, cog_path, driver="GTiff",
+                 tiled=True, blockxsize=256, blockysize=256,
+                 compress="deflate", predictor=2,
+                 copy_src_overviews=True)
+        os.replace(cog_path, path)
+    finally:
+        for p in (tmp_path, cog_path):
+            try:
+                os.remove(p)
+            except FileNotFoundError:
+                pass
+
+
 def _process_raster(layer):
     import rasterio
     from rasterio.warp import calculate_default_transform, reproject, transform_bounds, Resampling
@@ -142,6 +168,8 @@ def _process_raster(layer):
         "rgb_bands": [1, min(2, band_count), min(3, band_count)],
         "color_ramp": "viridis",
     }
+
+    _to_cog(layer.file.path)
 
 
 # ---------------------------------------------------------------------------
